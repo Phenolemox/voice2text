@@ -1,0 +1,12 @@
+body{font:16px/1.5 system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;color:#222}
+button{font-size:1rem;padding:.6rem 1rem;margin:.2rem;border-radius:8px;border:1px solid #888;background:#f4f4f4;cursor:pointer}
+button.rec{background:#c62828;color:#fff}
+.note{background:#eef6ee;border-left:4px solid #4caf50;padding:.5rem .8rem}
+#result p{background:#fafafa;padding:.5rem;border-radius:6px}
+.muted{color:#666;font-size:.9rem}
+progress{width:100%}
+textarea{width:100%;min-height:3rem}
+#meter:not([hidden]){display:flex;align-items:center;gap:.6rem;margin:.3rem 0}
+#vtrack{flex:1;max-width:260px;height:10px;background:#e0e0e0;border-radius:5px;overflow:hidden}
+#vbar{height:100%;width:0;background:#4caf50;transition:width .1s linear}
+.warn{background:#fff4e5;border-left:4px solid #ff9800;padding:.5rem .8rem}

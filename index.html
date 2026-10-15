@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Голос в текст</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head>
+<body>
+<h1 data-t="title">Голос в текст</h1>
+<button id="lang" class="muted">EN</button>
+<p class="note" data-t="privacy">Голос не уходит с вашего устройства. Абзацы расставлены по паузам.</p>
+<div id="dl" hidden><progress id="dlbar" max="1" value="0"></progress><p id="dltext"></p></div>
+<p>
+  <button id="rec" data-t="rec">🎙 Диктовать</button>
+  <button id="stop" disabled data-t="stop">■ Стоп</button>
+  <select id="speechlang"><option value="russian">Русский</option><option value="english">English</option><option value="">Auto</option></select>
+  <select id="model"><option value="small" data-t="msmall" selected>Точная (~250 МБ, скачивается один раз)</option><option value="base" data-t="mfast">Быстрая (~80 МБ, ошибается чаще)</option></select>
+  <label><span data-t="file">или файл:</span> <input type="file" id="file" accept="audio/*"></label>
+</p>
+<div id="meter" hidden><div id="vtrack"><div id="vbar"></div></div><span id="vlabel" class="muted" data-t="vlabel">Вас слышно</span></div>
+<p id="micmsg" class="warn" role="status" aria-live="polite" hidden></p>
+<p id="firsthint" class="note" data-t="firsthint">Первый запуск дольше: скачиваю модель. На мобильном интернете лучше выбрать „Быструю“.</p>
+<p class="muted" data-t="hint">До ~30 секунд. Запись остановится сама после 2 секунд тишины.</p>
+<p><button id="sample" data-t="sample">Попробовать на примере</button><br>
+<a class="muted" href="https://huggingface.co/datasets/google/fleurs" target="_blank" rel="noopener" data-t="samplecap">Пример на живом голосе: зачитанная фраза, одна из удачных. Среднее качество ниже, на вашем голосе может быть иначе. Запись: FLEURS (Google), CC-BY 4.0.</a></p>
+<p id="status" class="muted"></p>
+<p><button id="fastbtn" hidden data-t="fastbtn">Расшифровать быстрой</button></p>
+<div id="result"></div>
+<section id="feedback" hidden>
+  <p data-t="fb">Как получилось? Напишите пару слов в issue №1, нам важен каждый честный отзыв.</p>
+  <p><b data-t="q1">Что запомнилось?</b></p>
+  <p><b data-t="q2">Чем это лучше того, чем вы пользуетесь сейчас?</b></p>
+  <p class="muted"><a href="https://github.com/Phenolemox/workshop-notes/issues/1" target="_blank" rel="noopener" data-t="qcap">Пара слов в issue №1, без готовых вариантов</a></p>
+</section>
+<script src="app.js"></script>
+</body></html>
