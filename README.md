@@ -1,4 +1,4 @@
-# voice2text, v2.2 (ГЕФЕСТ, 15.10.2026; v2.2 = v2.1 + микрофон по ЛИРЕ, R2-20261015)
+# voice2text, v2.3 (ГЕФЕСТ, 16.10.2026; v2.3 = v2.2 + фикс двойного preload + «Скопировать»/«Оставить отзыв» (МАРК) + подписи загрузки (ЛИРА), R2-20261016)
 
 Статическая страница «голос в текст»: Whisper прямо в браузере, в Web Worker. Без фреймворков и сборщика.
 
@@ -6,8 +6,9 @@
 - `index.html`, `style.css`, `app.js`: страница, запись с микрофона, автостоп, абзацы, фильтр тишины и шума, антигаллюцинации, переключатель модели, таймаут.
 - `worker.js`: transformers.js `@huggingface/transformers@4.3.1` (CDN jsDelivr), `dtype: q8`. Модели: `Xenova/whisper-small` (по умолчанию с v2.1, решение команды 15.10) и `Xenova/whisper-base`. Скачиваются один раз, дальше берутся из кэша браузера.
 - `eval/06.wav`: пример на странице. FLEURS (Google), CC-BY 4.0, https://huggingface.co/datasets/google/fleurs. Подпись взята дословно из `TEXTS_LIRA.md` §6: фраза одна из удачных, среднее качество ниже.
-- `eval/`: тестовый набор АРГУСА (10 фраз FLEURS + silence/noise), `wer.py`, `run_eval.py`, результаты `RESULTS_GEFEST.md` (v1) и `RESULTS_GEFEST_v2.md`. `eval/robust/`: своя проверка устойчивости (речь −20 дБ, синтетические шумы).
-- `samples/sample-ru.wav` (espeak-ng, наш) и `near-silent.wav`: используются только в `tests/test_page.py`, на странице их больше нет.
+- `eval/`: тестовый набор АРГУСА (10 фраз FLEURS + `silence.wav`/`noise.wav`, `manifest.csv`), `wer.py`, `run_eval.py`, `hyp_small_v2.csv` (эталон для проверки 06). Эти файлы нужны тестам: если в копии репозитория их нет, `tests/test_mic.py` и `tests/test_v23.py` не запустятся. Результаты `RESULTS_GEFEST.md` (v1) и `RESULTS_GEFEST_v2.md`. `eval/robust/`: своя проверка устойчивости (речь −20 дБ, синтетические шумы).
+- `samples/sample-ru.wav` — СИНТЕТИКА (espeak-ng, наш голос робота), и `near-silent.wav`: только для `tests/test_page.py`. На синтетике Whisper ошибается сильно: WER ≈ 0.75 — это ожидаемо и в критерий теста не входит.
+- `tests/`: `test_page.py`, `test_mic.py`, `test_v23.py` (что им нужно — ниже, «Запуск»).
 - `TEXTS_LIRA.md`: тексты интерфейса (ЛИРА), взяты дословно.
 
 ## Сетевые запросы
@@ -15,7 +16,8 @@
 
 ## Запуск
 `python3 -m http.server` в этой папке, открыть `http://localhost:8000/`. Нужен HTTPS или localhost, иначе браузер не даст микрофон.
-Тест: `HOME=$(mktemp -d) /workspace/venv-pw/bin/python tests/test_page.py`
+Тесты (Python + Playwright, Chrome `/usr/bin/google-chrome`; нужны `eval/06.wav`, `eval/silence.wav`, `eval/hyp_small_v2.csv`, `samples/`, `TEXTS_LIRA.md`; сеть до jsDelivr и HF):
+`HOME=$(mktemp -d) /workspace/venv-pw/bin/python tests/test_page.py`, `/workspace/venv-pw/bin/python tests/test_mic.py`, `/workspace/venv-pw/bin/python tests/test_v23.py` (последний качает обе модели на чистый профиль с замедленной сетью, ~2–3 мин).
 Оценка: `/workspace/venv-pw/bin/python eval/run_eval.py Xenova/whisper-small out.csv [manifest|-] [лимит_с]`. Лимит на фразу по умолчанию 120 с (или `EVAL_TIMEOUT_S`); зависание записывается в `timeouts` с пустой гипотезой, затем `python3 eval/wer.py eval/manifest.csv out.csv`.
 
 ## Модель
@@ -39,10 +41,17 @@
 ## Микрофон (v2.2)
 - Во время записи полоска громкости (AnalyserNode, RMS, обновление 10 раз/с) и подпись «Вас слышно». Интервал и AudioContext закрываются по «Стоп»/автостопу.
 - Сообщения (тексты ЛИРЫ, TEXTS_LIRA.md §10, ru/en): NotAllowedError/SecurityError → «доступ запрещён»; NotFoundError/OverconstrainedError → «микрофона нет»; RMS < 0.003 дольше 3 с подряд → «ничего не слышно» (скрывается, когда звук вернулся). Новых сетевых запросов нет.
-- Проверено только в Chrome на боксе с поддельным устройством (tests/test_mic.py): «запрет» — подменой getUserMedia (NotAllowedError); «нет устройства» — подменой и реальным Chrome без устройств; тишина — eval/silence.wav; речь — eval/06.wav.
+- Проверено в Chrome на боксе (tests/test_mic.py): «запрет» — настоящий отказ браузера (поддельное устройство без авто-разрешения и без grant, сценарий АРГУСА argus_v22.py; Chrome сам отдаёт NotAllowedError); «нет устройства» — реальный Chrome без устройств (NotFoundError) и подменой NotFoundError/OverconstrainedError; тишина — eval/silence.wav; речь — eval/06.wav.
 - НЕ проверено: iOS Safari, Telegram WebView, слабые телефоны, живой микрофон человека, порог тишины на шумных гарнитурах.
 
-- sha256 v2.2: index.html 2334ece68e5becbe7bc46fcdce87a6de1bd0b3368c37f66bd491884dd6687097, app.js 07222b9ea9a080e0b21acc43ae11bcd04b670bc91553c1fa92dfd9aa6f201616, style.css e7b02556082997dd3adc18c23d557edd09990f932bba61cb15794fe2e97ebedc, worker.js aeea577bc452278e75a57aed21a18b0553ccd1aea31acab5d5aa58871f035b6f, tests/test_mic.py b74e2e4e7a4cc0b4f9fd8921887bc8e150e5d9960c4308768dbb020b6edfbf6c (README сам себя не хеширует, см. DONE_GEFEST.md).
+- sha256 v2.2 (историческое, для отката): см. journal/argus-accept3/SNAPSHOT.sha256. sha256 v2.3 — в projects/R2-20261016/DONE_GEFEST.md (README сам себя не хеширует).
+
+## v2.3
+- Фикс: `preload()` больше не перезаписывает один `readyRes`. Один общий промис на модель (сбрасывается при пересоздании worker по таймауту); в worker — один общий промис загрузки на модель. Расшифровки идут по очереди. Раньше вторая загрузка (запись + «Пример», смена модели во время загрузки) оставляла первую запись висеть навсегда.
+- «Скопировать текст» (§11): «Скопировано…» показывается только после успешного `writeText`, 2 с. Если запись в буфер отклонена или API нет — текст результата выделяется и показывается текст ошибки §11.
+- «Оставить отзыв»: ссылка `https://github.com/Phenolemox/workshop-notes/issues/new?title=…&body=…` с вопросами §5, вопросом §11 и вариантами, моделью (Точная/Быстрая) и тем, нажимали ли «Расшифровать быстрой». Текст расшифровки в ссылку НЕ попадает. До клика к GitHub нет ни одного запроса. Кнопка спрос не доказывает.
+- Подписи ЛИРЫ (§12): загрузка модели начинается по нажатию «Диктовать»; пока качается — «Можно говорить уже сейчас… (N%)»; после стопа при неготовой модели — «Запись сохранена. Жду модель… N%», текст появляется сам. Пока сохранённая запись ждёт модель, кнопка записи заблокирована (вторая запись честно не принимается, а не теряется).
+- НЕ проверено: iOS Safari, Telegram WebView (буфер обмена и микрофон), реальный телефон, настоящая медленная мобильная сеть (на боксе — только замедление CDP), внешний человек с аккаунтом GitHub.
 
 ## Ограничения
 - Порог 15 дБ может отрезать речь на фоне громкого шума: смесь речи с шумом не проверялась. Речь тише ≈ −46 dBFS по пику отсекается.

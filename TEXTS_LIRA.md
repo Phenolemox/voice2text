@@ -53,3 +53,18 @@ en: Your voice never leaves your device. Paragraphs are split by pauses.
 - Тишина дольше 3 с:
   - ru: «Ничего не слышно. Проверьте, какой микрофон выбран, и не выключен ли звук на гарнитуре.»
   - en: "I can't hear anything. Check which microphone is selected and that your headset isn't muted."
+
+## 11. Копирование и вопрос «куда дели текст» (v2.3)
+
+Кнопка: «Скопировать текст» / "Copy text"
+Успех (показывать ТОЛЬКО после успешного writeText, 2 с): «Скопировано, вставляйте куда нужно» / "Copied, paste it anywhere"
+Ошибка (текст выделен автоматически): «Не получилось скопировать. Текст выделен — скопируйте вручную» / "Couldn't copy. The text is selected, copy it manually"
+
+Вопрос в отзыве: «Куда вы потом дели текст?» / "What did you do with the text?"
+- «Вставил в сообщение или документ» / "Pasted it into a message or document"
+- «Прочитал и закрыл» / "Read it and closed"
+- «Ничего не получилось» / "Nothing worked"
+
+## 12. Подписи во время загрузки модели (v2.3; ЛИРА, R2-20261016, перенесено ГЕФЕСТОМ дословно из proposal_LIRA.md)
+- Во время загрузки: «Можно говорить уже сейчас — расшифрую, как только загружусь (N%)» / "You can speak now, I'll transcribe once loaded (N%)"
+- Запись готова, модель ещё грузится: «Запись сохранена. Жду модель… N%» / "Recording saved. Waiting for the model… N%"

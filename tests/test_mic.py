@@ -1,4 +1,5 @@
-# v2.2 microphone UX checks (К1, К2, К3, К4). Fake devices only: real mics/phones are NOT covered.
+# v2.2/v2.3 microphone UX checks. Needs eval/06.wav, eval/silence.wav, eval/hyp_small_v2.csv, TEXTS_LIRA.md.
+# (К1, К2, К3, К4). Fake devices only: real mics/phones are NOT covered.
 import os, sys, json, csv, functools, http.server, threading
 from playwright.sync_api import sync_playwright
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,14 +27,20 @@ def sample_meter(pg, secs):
 def var(v): m = sum(v) / len(v); return sum((x - m) ** 2 for x in v) / len(v)
 with sync_playwright() as p:
     base = ["--autoplay-policy=no-user-gesture-required", "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
-    # К2a denied: real Chrome permission denial (no grant, no fake-ui auto-accept)
-    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--autoplay-policy=no-user-gesture-required"])
+    # К2a denied, REAL browser denial (adopted from АРГУС journal/argus-accept3/argus_v22.py):
+    # fake device present, NO --use-fake-ui-for-media-stream, context without microphone grant -> Chrome itself rejects.
+    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--use-fake-device-for-media-stream"])
+    pg = page(b); res["denied_real_gum"] = pg.evaluate("navigator.mediaDevices.getUserMedia({audio:true}).then(s=>{s.getTracks().forEach(t=>t.stop());return 'OK'},e=>e.name)")
     pg = page(b); pg.click("#rec"); pg.wait_for_timeout(1500)
-    res["denied_real"] = {"shown": pg.is_visible("#micmsg"), "text": pg.inner_text("#micmsg")[:40], "text_ok": pg.inner_text("#micmsg") == DENIED}
-    if not res["denied_real"]["text_ok"]:  # headless may not reject by itself; fall back to simulated NotAllowedError
-        pg = page(b, reject("NotAllowedError")); pg.click("#rec"); pg.wait_for_timeout(500)
-    res["denied"] = pg.inner_text("#micmsg") == DENIED
-    pg.click("#lang"); res["denied_en"] = pg.inner_text("#micmsg").startswith("The browser blocked the microphone."); 
+    res["denied"] = res["denied_real_gum"] == "NotAllowedError" and pg.inner_text("#micmsg") == DENIED
+    pg.click("#lang"); res["denied_en"] = pg.inner_text("#micmsg").startswith("The browser blocked the microphone.")
+    b.close()
+    # К2b' no device, REAL: no fake device, fake-ui accepts, granted -> Chrome reports NotFoundError
+    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--use-fake-ui-for-media-stream"])
+    pg = page(b, perms=["microphone"]); pg.click("#rec"); pg.wait_for_timeout(1500)
+    res["nodevice_real"] = pg.inner_text("#micmsg") == NONE
+    b.close()
+    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--autoplay-policy=no-user-gesture-required"])
     # К2b no device (SIMULATED via init script)
     pg = page(b, reject("NotFoundError")); pg.click("#rec"); pg.wait_for_timeout(500)
     res["nodevice_sim"] = pg.inner_text("#micmsg") == NONE
@@ -55,6 +62,6 @@ with sync_playwright() as p:
     pg.click("#stop"); b.close()
 res["hosts"] = sorted(hosts); res["hosts_ok"] = hosts <= ALLOWED
 print(json.dumps(res, ensure_ascii=False, indent=1))
-ok = (res["denied"] and res["denied_en"] and res["nodevice_sim"] and res["overconstrained_sim"] and res["k4"] and res["silence"]["msg"]
+ok = (res["denied"] and res["nodevice_real"] and res["denied_en"] and res["nodevice_sim"] and res["overconstrained_sim"] and res["k4"] and res["silence"]["msg"]
       and res["silence"]["max_rms"] < 0.003 and res["silence"]["meter_hidden_after_stop"] and res["speech"]["var"] > 0 and not res["speech"]["silent_msg"] and res["hosts_ok"])
 sys.exit(0 if ok else 1)

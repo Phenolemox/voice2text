@@ -11,7 +11,11 @@ const T = {
     silent:"Похоже, в записи тишина — распознавать нечего.", working:"Распознаю…", listening:"Слушаю…", lang:"EN", timeout:"Точная модель думает слишком долго, поэтому я её остановила. Попробуйте „Быструю“: она справится за секунды, хоть и ошибается чаще. Запись не потерялась.", fastbtn:"Расшифровать быстрой",
     vlabel:"Вас слышно", micdenied:"Браузер не дал доступ к микрофону. Нажмите на значок замка или микрофона слева от адреса страницы и выберите „Разрешить“, затем обновите страницу. На iPhone: Настройки → Safari → Микрофон.",
     micnone:"Не вижу микрофона. Подключите наушники с микрофоном или откройте страницу на телефоне. А пока можно попробовать на готовом примере ниже.",
-    micsilent:"Ничего не слышно. Проверьте, какой микрофон выбран, и не выключен ли звук на гарнитуре." },
+    micsilent:"Ничего не слышно. Проверьте, какой микрофон выбран, и не выключен ли звук на гарнитуре.",
+    copy:"Скопировать текст", copied:"Скопировано, вставляйте куда нужно", copyfail:"Не получилось скопировать. Текст выделен — скопируйте вручную",
+    q3:"Куда вы потом дели текст?", q3opts:["Вставил в сообщение или документ", "Прочитал и закрыл", "Ничего не получилось"], fbbtn:"Оставить отзыв",
+    fbtitle:"Отзыв о voice2text", fbmodel:"Модель", fbswitched:"Переходил на „Быструю“", yes:"да", no:"нет",
+    canspeak:"Можно говорить уже сейчас — расшифрую, как только загружусь (N%)", saved:"Запись сохранена. Жду модель… N%" },
   en: { title:"Voice to text", privacy:"Your voice never leaves your device. Paragraphs are split by pauses.",
     dl:"Downloading the speech model: {done} of {total} MB. This happens once; after that everything runs on your device.",
     sample:"Try a sample", samplecap:"A real-voice sample: a read-aloud phrase, one of the better results. Average quality is lower and may differ for your voice. Recording: FLEURS (Google), CC-BY 4.0.",
@@ -22,7 +26,11 @@ const T = {
     silent:"Looks like the recording is silent — nothing to transcribe.", working:"Transcribing…", listening:"Listening…", lang:"RU", timeout:"The accurate model is taking too long, so I stopped it. Try „Fast“: it finishes in seconds, though it makes more mistakes. Your recording is still here.", fastbtn:"Transcribe with Fast",
     vlabel:"I can hear you", micdenied:"The browser blocked the microphone. Tap the lock or microphone icon left of the page address, choose „Allow“, then reload. On iPhone: Settings → Safari → Microphone.",
     micnone:"No microphone found. Plug in a headset or open this page on your phone. Meanwhile, you can try the sample below.",
-    micsilent:"I can't hear anything. Check which microphone is selected and that your headset isn't muted." },
+    micsilent:"I can't hear anything. Check which microphone is selected and that your headset isn't muted.",
+    copy:"Copy text", copied:"Copied, paste it anywhere", copyfail:"Couldn't copy. The text is selected, copy it manually",
+    q3:"What did you do with the text?", q3opts:["Pasted it into a message or document", "Read it and closed", "Nothing worked"], fbbtn:"Leave feedback",
+    fbtitle:"voice2text feedback", fbmodel:"Model", fbswitched:"Switched to „Fast“", yes:"yes", no:"no",
+    canspeak:"You can speak now, I'll transcribe once loaded (N%)", saved:"Recording saved. Waiting for the model… N%" },
 };
 let L = "ru";
 const $ = (id) => document.getElementById(id);
@@ -30,6 +38,9 @@ function applyLang() {
   document.documentElement.lang = L;
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = T[L][el.dataset.t]; });
   $("lang").textContent = T[L].lang;
+  if ($("feedback") && !$("feedback").hidden) setFeedbackHref();
+  showLoad();
+  const cm = $("copymsg"); if (cm && cm.dataset.k) cm.textContent = T[L][cm.dataset.k];
   const m = $("micmsg"); if (m && m.dataset.k) m.textContent = T[L][m.dataset.k];
 }
 $("lang").onclick = () => { L = L === "ru" ? "en" : "ru"; applyLang(); };
@@ -95,8 +106,11 @@ function paragraphs(text, chunks) {
 
 // ---- worker ----
 let worker = null;
-function makeWorker() { worker = new Worker("worker.js", { type: "module" }); worker.onmessage = onMsg; }
-let pending = null, readyRes = null, netRes = null;
+// v2.3: one shared "ready" promise per model (v2.2 bug: a second preload() overwrote readyRes and the
+// first caller waited forever). Reset when the worker is recreated (timeout).
+let ready = {}, loadPct = null, waitingRec = false;
+function makeWorker() { worker = new Worker("worker.js", { type: "module" }); worker.onmessage = onMsg; ready = {}; }
+let pending = null, netRes = null;
 // Optional ?model= override for evaluation only; default stays in worker.js.
 const MODEL_PARAM = new URLSearchParams(location.search).get("model");
 const MODELS = { base: "Xenova/whisper-base", small: "Xenova/whisper-small" };
@@ -106,9 +120,11 @@ const curModel = () => MODELS[$("model").value] || $("model").value;
 const onMsg = (e) => {
   const m = e.data;
   if (m.type === "progress") {
+    if (!ready[m.model] || !ready[m.model].done) { loadPct = m.total > 5e6 ? Math.min(99, Math.floor(100 * m.done / m.total)) : 0; /* tiny config files first would read as ~100% */ showLoad(); }
     $("dl").hidden = false; $("dlbar").max = m.total || 1; $("dlbar").value = m.done;
     $("dltext").textContent = T[L].dl.replace("{done}", (m.done / 1048576).toFixed(1)).replace("{total}", (m.total / 1048576).toFixed(1));
-  } else if (m.type === "ready") { $("dl").hidden = true; $("firsthint").hidden = true; readyRes && readyRes(); }
+  } else if (m.type === "ready") { $("dl").hidden = true; $("firsthint").hidden = true; const r = ready[m.model]; if (r) { r.done = true; r.res(); } loadPct = null; showLoad(); }
+  else if (m.type === "loaderror") { const r = ready[m.model]; delete ready[m.model]; r && r.rej(new Error(m.message)); }
   else if (m.type === "netstats") { netRes && netRes(m.entries); }
   else if (m.type === "result" || m.type === "error") { const p = pending; pending = null; p && (m.type === "result" ? p.res(m) : p.rej(new Error(m.message))); }
 };
@@ -118,7 +134,9 @@ let TEST_TIMEOUT_MS = Number(new URLSearchParams(location.search).get("_test_tim
 class TimeoutError extends Error {}
 let lastAudio = null; // raw audio of the last run, kept across worker restarts
 const TIMEOUT_MIN_S = 30, TIMEOUT_PER_AUDIO_S = 3;
-async function asr(audio) {
+let asrChain = Promise.resolve();
+function asr(audio) { const r = asrChain.then(() => asr1(audio)); asrChain = r.catch(() => {}); return r; }
+async function asr1(audio) {
   await preload(); // model download is not counted against the timeout
   const limit = TEST_TIMEOUT_MS > 0 ? TEST_TIMEOUT_MS : Math.max(TIMEOUT_MIN_S, TIMEOUT_PER_AUDIO_S * audio.length / SR) * 1000;
   return new Promise((res, rej) => {
@@ -144,19 +162,43 @@ async function run(audio) {
   if (repetitive(ps.join(" "))) ps = [];
   $("status").textContent = ps.length ? "" : T[L].silent;
   for (const p of ps) { const el = document.createElement("p"); el.textContent = p; $("result").appendChild(el); }
-  $("feedback").hidden = ps.length === 0;
+  $("feedback").hidden = ps.length === 0; $("copymsg").hidden = true; if (ps.length) setFeedbackHref();
   return { paragraphs: ps, skipped: false, model: curModel() };
 }
 // Re-transcribe the SAME kept audio with the fast model (no new dictation).
-async function runFast() { if (!lastAudio) return null; $("model").value = "base"; await preload(); return run(lastAudio); }
+let switchedFast = false;
+async function runFast() { if (!lastAudio) return null; $("model").value = "base"; switchedFast = true; await preload(); return run(lastAudio); }
 $("fastbtn").onclick = () => runFast().catch((x) => { $("status").textContent = String(x); });
 async function runUrl(url) { return run(await decode(await (await fetch(url)).arrayBuffer())); }
+
+// ---- copy + feedback (МАРК, TEXTS_LIRA §5, §11) ----
+const resultText = () => [...$("result").querySelectorAll("p")].map((p) => p.textContent).join("\n\n");
+let copyTimer = null;
+function copyMsg(k) { const m = $("copymsg"); m.textContent = T[L][k]; m.dataset.k = k; m.hidden = false; clearTimeout(copyTimer); if (k === "copied") copyTimer = setTimeout(() => { m.hidden = true; }, 2000); }
+async function copyText() {
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("no clipboard API");
+    await navigator.clipboard.writeText(resultText()); copyMsg("copied"); return true;
+  } catch (e) {
+    const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($("result")); sel.removeAllRanges(); sel.addRange(rg);
+    copyMsg("copyfail"); return false;
+  }
+}
+$("copybtn").onclick = () => { copyText(); };
+const MODEL_NAME = () => ({ "Xenova/whisper-small": T[L].msmall.split(" (")[0], "Xenova/whisper-base": T[L].mfast.split(" (")[0] }[curModel()] || curModel());
+function feedbackUrl() {  // never contains the transcript
+  const t = T[L], body = [`### ${t.q1}`, "", "", `### ${t.q2}`, "", "", `### ${t.q3}`, ...t.q3opts.map((o) => `- [ ] ${o}`), "",
+    `${t.fbmodel}: ${MODEL_NAME()}`, `${t.fbswitched}: ${switchedFast ? t.yes : t.no}`].join("\n");
+  return "https://github.com/Phenolemox/workshop-notes/issues/new?title=" + encodeURIComponent(t.fbtitle) + "&body=" + encodeURIComponent(body);
+}
+function setFeedbackHref() { $("fblink").href = feedbackUrl(); }
 
 // ---- microphone with auto-stop ----
 let rec = null;
 const METER_QUIET_RMS = 0.003, MIC_SILENT_MS = 3000;
 function showMic(k) { const m = $("micmsg"); m.dataset.k = k; m.textContent = T[L][k]; m.hidden = false; }
 async function startRec() {
+  preload().catch(() => {}); // start downloading while the user speaks (§12)
   $("micmsg").hidden = true;
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
@@ -196,14 +238,28 @@ async function stopRec() {
   for (const p of r.parts) { all.set(p, o); o += p.length; }
   const rate = r.ac.sampleRate; r.ac.close();
   $("rec").classList.remove("rec"); $("rec").disabled = false; $("stop").disabled = true;
-  await run(await toMono16k(all, rate));
+  const audio = await toMono16k(all, rate);
+  if (!isReady()) { waitingRec = true; $("rec").disabled = true; showLoad(); } // one saved recording at a time: rec is blocked until it is transcribed
+  try { await preload(); } finally { waitingRec = false; $("rec").disabled = false; showLoad(); }
+  return run(audio);
 }
 $("rec").onclick = () => startRec().catch((e) => { $("status").textContent = String(e); });
 $("stop").onclick = () => stopRec();
 $("file").onchange = async (e) => { const f = e.target.files[0]; if (f) run(await decode(await f.arrayBuffer())).catch((x) => { $("status").textContent = String(x); }); };
 $("sample").onclick = () => runUrl("eval/06.wav").catch((x) => { $("status").textContent = String(x); });
 
-function preload() { return new Promise((r) => { readyRes = r; worker.postMessage({ type: "load", model: curModel() }); }); }
+function preload(model = curModel()) {
+  if (!ready[model]) { const r = ready[model] = {}; r.p = new Promise((res, rej) => { r.res = res; r.rej = rej; }); worker.postMessage({ type: "load", model }); }
+  return ready[model].p;
+}
+const isReady = (model = curModel()) => !!(ready[model] && ready[model].done);
+// ЛИРА §12: captions while the model downloads.
+function showLoad() {
+  const busy = loadPct != null && !isReady();
+  $("canspeak").hidden = !busy || waitingRec;
+  if (busy) $("canspeak").textContent = T[L].canspeak.replace("N", loadPct);
+  if (waitingRec) $("status").textContent = T[L].saved.replace("N", loadPct ?? 0);
+}
 function netstats() { return new Promise((r) => { netRes = r; worker.postMessage({ type: "netstats" }); }); }
-window.v2t = { startRec, stopRec, setTestTimeout: (ms) => { TEST_TIMEOUT_MS = ms; }, runFast, netstats, runUrl, preload, paragraphs, clean, curModel };
+window.v2t = { copyText, feedbackUrl, isReady, startRec, stopRec, setTestTimeout: (ms) => { TEST_TIMEOUT_MS = ms; }, runFast, netstats, runUrl, preload, paragraphs, clean, curModel };
 applyLang();

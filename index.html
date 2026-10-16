@@ -13,6 +13,7 @@
   <select id="model"><option value="small" data-t="msmall" selected>Точная (~250 МБ, скачивается один раз)</option><option value="base" data-t="mfast">Быстрая (~80 МБ, ошибается чаще)</option></select>
   <label><span data-t="file">или файл:</span> <input type="file" id="file" accept="audio/*"></label>
 </p>
+<p id="canspeak" class="note" hidden></p>
 <div id="meter" hidden><div id="vtrack"><div id="vbar"></div></div><span id="vlabel" class="muted" data-t="vlabel">Вас слышно</span></div>
 <p id="micmsg" class="warn" role="status" aria-live="polite" hidden></p>
 <p id="firsthint" class="note" data-t="firsthint">Первый запуск дольше: скачиваю модель. На мобильном интернете лучше выбрать „Быструю“.</p>
@@ -23,10 +24,12 @@
 <p><button id="fastbtn" hidden data-t="fastbtn">Расшифровать быстрой</button></p>
 <div id="result"></div>
 <section id="feedback" hidden>
+  <p><button id="copybtn" data-t="copy">Скопировать текст</button> <span id="copymsg" class="muted" role="status" aria-live="polite" hidden></span></p>
   <p data-t="fb">Как получилось? Напишите пару слов в issue №1, нам важен каждый честный отзыв.</p>
   <p><b data-t="q1">Что запомнилось?</b></p>
   <p><b data-t="q2">Чем это лучше того, чем вы пользуетесь сейчас?</b></p>
   <p class="muted"><a href="https://github.com/Phenolemox/workshop-notes/issues/1" target="_blank" rel="noopener" data-t="qcap">Пара слов в issue №1, без готовых вариантов</a></p>
+  <p><a id="fblink" href="https://github.com/Phenolemox/workshop-notes/issues/new" target="_blank" rel="noopener" data-t="fbbtn">Оставить отзыв</a></p>
 </section>
 <script src="app.js"></script>
 </body></html>
